@@ -203,6 +203,69 @@ and implementation patterns."
 
 ---
 
+## Demo 7: Autonomous Agent Loops with Deterministic Completion
+
+**Scenario:** Implement Products API endpoints autonomously using ralph
+
+**Demo Flow:**
+
+### Part 1: Setup & Context (1 min)
+```bash
+cd autonomous-loop-demo
+cat PROMPT.md  # Show completion criteria
+npm test       # Show current state: some tests passing, some failing
+```
+
+### Part 2: Pre-Warm Explanation (30 sec)
+"I've already run this through 3 iterations. The agent has implemented GET and POST endpoints. Now let's watch it complete the remaining PUT and DELETE endpoints autonomously."
+
+```bash
+git log --oneline  # Show iteration history
+cat src/endpoints/products.ts  # Show partial implementation
+```
+
+### Part 3: Launch Ralph for Final Iterations (2 min)
+```bash
+npm run ralph  # Start autonomous loop
+# Watch as agent:
+#   - Sees failing PUT/DELETE tests
+#   - Implements PUT endpoint
+#   - Re-runs tests, sees progress
+#   - Implements DELETE endpoint
+#   - Verifies all tests pass
+#   - Outputs <promise>COMPLETE</promise>
+#   - Ralph detects completion and exits
+```
+
+### Part 4: Verify Completion (30 sec)
+```bash
+npm test       # All 19 tests passing ✅
+git log        # Show 2 new commits from autonomous iterations
+cat src/endpoints/products.ts  # Show complete implementation
+```
+
+### Part 5: GitHub Integration (2 min)
+"Now let me show you how this same autonomous loop works in GitHub. They have built-in autonomous agents, so to get started quickly, you can use their cloud-based approach. But for customization and local control, ralph gives you more flexibility."
+
+```bash
+cat .github/workflows/autonomous-implementation.yml  # Show the workflow
+# Demo GitHub Actions UI (optional)
+```
+
+**What it shows:**
+- PROMPT.md with clear completion criteria and `<promise>COMPLETE</promise>` marker
+- Deterministic success verification (tests pass, not subjective judgment)
+- Test-driven autonomous development (tests define behavior)
+- Autonomous iteration until objective criteria met
+- Exit detection and completion verification
+- Session persistence (agent sees its own work across iterations)
+- Local (ralph) vs. cloud (GitHub) autonomous execution
+- When to use autonomous loops vs. manual iteration
+
+**Key Insight:** Don't trust the agent's claim that it's done—verify programmatically using deterministic tests.
+
+---
+
 ## Suggested Demo Flow
 
 | Order | Demo | Duration | Key Tool/Feature |
@@ -213,10 +276,11 @@ and implementation patterns."
 | 4 | Build (1C) | 4 min | Parallel agents |
 | 5 | MCP Servers (3) | 3 min | AWS/MS Docs MCPs |
 | 6 | Test (1D) | 3 min | Test generation |
-| 7 | GitHub Parallel (4) | 3 min | GitHub Actions |
-| 8 | Skills & Rules (5) | 3 min | Skills, rules enforcement |
+| 7 | Autonomous Loops (NEW) | 6 min | Ralph, deterministic tests, GitHub |
+| 8 | GitHub Parallel (4) | 3 min | GitHub Actions |
+| 9 | Skills & Rules (5) | 3 min | Skills, rules enforcement |
 
-**Total estimated time:** ~27 minutes
+**Total estimated time:** ~33 minutes
 
 ---
 

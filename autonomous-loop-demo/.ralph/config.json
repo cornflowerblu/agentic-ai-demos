@@ -1,0 +1,16 @@
+{
+  "maxIterations": 50,
+  "sessionTimeout": "24h",
+  "exitDetection": {
+    "completionMarker": "<promise>COMPLETE</promise>",
+    "testCommand": "npm test",
+    "testSuccessRequired": true
+  },
+  "circuitBreaker": {
+    "maxConsecutiveTestOnlyLoops": 3,
+    "minProgressInterval": 5
+  },
+  "model": "claude-sonnet-4-5-20250929",
+  "promptFile": "PROMPT.md",
+  "workingDirectory": "."
+}
