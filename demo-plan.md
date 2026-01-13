@@ -266,6 +266,63 @@ cat .github/workflows/autonomous-implementation.yml  # Show the workflow
 
 ---
 
+## Demo 8: Autonomous IaC with AWS CDK
+
+**Scenario:** Implement serverless API infrastructure autonomously using AWS CDK
+
+**Demo Flow:** (8-10 min total, pre-warmed)
+
+### Part 1: Setup & Context (2 min)
+```bash
+cd autonomous-loop-demo-iac
+cat PROMPT.md                      # Show multi-phase criteria
+npm run preflight                  # Validate AWS credentials
+npm run test:unit                  # Show 12/12 unit tests passing
+```
+
+### Part 2: Show Initial State (1 min)
+```bash
+npm run demo:reset                 # Load skeleton Lambda
+npm run deploy                     # Deploy infrastructure (~2-3 min)
+npm run test:integration           # All 19 tests fail (Lambda not implemented)
+```
+
+### Part 3: Load Pre-Warmed State (30 sec)
+```bash
+npm run demo:prewarm               # GET/POST implemented
+npm run deploy                     # Re-deploy with partial implementation
+npm run test:integration           # 12/19 passing, 7 failing
+```
+
+### Part 4: Autonomous Loop (3 min)
+```bash
+npm run ralph                      # Agent sees 7 failing tests
+# Watch as agent:
+#   - Implements PUT endpoint for updating products
+#   - Re-runs integration tests, sees progress
+#   - Implements DELETE endpoint
+#   - Verifies all tests pass
+#   - Outputs <promise>COMPLETE</promise>
+```
+
+### Part 5: Verify & Cleanup (2 min)
+```bash
+npm run test:integration           # 19/19 passing ✅
+npm run destroy                    # Cleanup AWS resources
+```
+
+**What it shows:**
+- Multi-phase testing (unit tests → CDK synth → deployment → integration tests → cleanup)
+- Deterministic IaC completion criteria
+- Integration tests against **live AWS resources** (DynamoDB, Lambda, API Gateway)
+- Autonomous iteration with infrastructure deployment
+- Cost-conscious cleanup mechanisms (< $0.50 per run)
+- Same test-driven pattern applied to infrastructure, not just application code
+
+**Key Takeaway:** Autonomous agents can manage infrastructure deployment end-to-end, with objective success criteria based on live resource validation.
+
+---
+
 ## Suggested Demo Flow
 
 | Order | Demo | Duration | Key Tool/Feature |
@@ -276,11 +333,12 @@ cat .github/workflows/autonomous-implementation.yml  # Show the workflow
 | 4 | Build (1C) | 4 min | Parallel agents |
 | 5 | MCP Servers (3) | 3 min | AWS/MS Docs MCPs |
 | 6 | Test (1D) | 3 min | Test generation |
-| 7 | Autonomous Loops (NEW) | 6 min | Ralph, deterministic tests, GitHub |
-| 8 | GitHub Parallel (4) | 3 min | GitHub Actions |
-| 9 | Skills & Rules (5) | 3 min | Skills, rules enforcement |
+| 7 | Autonomous Loops (7) | 6 min | Ralph, deterministic tests, GitHub |
+| 8 | Autonomous IaC (8) | 8-10 min | AWS CDK, multi-phase testing |
+| 9 | GitHub Parallel (4) | 3 min | GitHub Actions |
+| 10 | Skills & Rules (5) | 3 min | Skills, rules enforcement |
 
-**Total estimated time:** ~33 minutes
+**Total estimated time:** ~41-43 minutes
 
 ---
 

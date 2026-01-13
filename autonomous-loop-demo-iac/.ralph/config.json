@@ -1,0 +1,22 @@
+{
+  "maxIterations": 30,
+  "sessionTimeout": "2h",
+  "exitDetection": {
+    "completionMarker": "<promise>COMPLETE</promise>",
+    "testCommand": "npm run verify",
+    "testSuccessRequired": true
+  },
+  "circuitBreaker": {
+    "maxConsecutiveTestOnlyLoops": 5,
+    "minProgressInterval": 3,
+    "timeoutAction": "cleanup"
+  },
+  "hooks": {
+    "beforeSession": "npm run preflight",
+    "afterSession": "npm run cleanup",
+    "onTimeout": "npm run cleanup"
+  },
+  "model": "claude-sonnet-4-5-20250929",
+  "promptFile": "PROMPT.md",
+  "workingDirectory": "."
+}

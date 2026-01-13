@@ -1,0 +1,46 @@
+{
+  "name": "autonomous-loop-demo-iac",
+  "version": "1.0.0",
+  "description": "Autonomous agent loop demo with AWS CDK Infrastructure-as-Code",
+  "main": "bin/app.js",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "preflight": "ts-node scripts/pre-flight-check.ts",
+    "test:unit": "jest test/unit --verbose",
+    "test:integration": "jest test/integration --runInBand --verbose",
+    "test": "npm run test:unit && npm run test:integration",
+    "build": "tsc",
+    "synth": "cdk synth",
+    "deploy": "cdk deploy --require-approval never --outputs-file cdk-outputs.json",
+    "destroy": "cdk destroy --force",
+    "cleanup": "npm run destroy || ts-node scripts/force-cleanup.ts",
+    "ralph": "echo 'Ralph: npx @anthropic/claude-code --continue --prompt PROMPT.md'",
+    "verify": "npm run test:unit && npm run deploy && npm run test:integration && npm run destroy",
+    "demo:reset": "cp demo-snapshots/iteration-0-skeleton.ts lambda/index.ts",
+    "demo:prewarm": "cp demo-snapshots/iteration-4-partial.ts lambda/index.ts",
+    "demo:complete": "cp demo-snapshots/iteration-8-complete.ts lambda/index.ts"
+  },
+  "keywords": ["autonomous", "ai", "cdk", "infrastructure", "serverless", "demo"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "aws-cdk-lib": "^2.168.0",
+    "constructs": "^10.4.2"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.709.0",
+    "@aws-sdk/client-sts": "^3.709.0",
+    "@aws-sdk/lib-dynamodb": "^3.709.0",
+    "@types/aws-lambda": "^8.10.145",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.5",
+    "aws-cdk": "^2.168.0",
+    "axios": "^1.7.9",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
