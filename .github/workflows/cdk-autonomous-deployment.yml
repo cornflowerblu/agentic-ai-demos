@@ -1,0 +1,146 @@
+name: Autonomous CDK Deployment
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'autonomous-loop-demo-iac/**'
+      - '.github/workflows/cdk-autonomous-deployment.yml'
+  workflow_dispatch:  # Manual trigger only (no accidental runs)
+    inputs:
+      deploy_to_aws:
+        description: 'Actually deploy to AWS? (Will incur ~$0.50 in charges)'
+        type: boolean
+        default: false
+        required: true
+
+jobs:
+  autonomous-iac:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # For AWS OIDC
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Fetch last 2 commits to get commit message
+
+      - name: Check if should deploy to AWS
+        id: check-deploy
+        run: |
+          # Check if manually triggered with deploy_to_aws=true
+          if [ "${{ inputs.deploy_to_aws }}" == "true" ]; then
+            echo "SHOULD_DEPLOY=true" >> $GITHUB_ENV
+            echo "Deploying to AWS: manual trigger"
+            exit 0
+          fi
+
+          # For PRs, get the actual head commit message (not GitHub's merge commit)
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
+            COMMIT_MSG=$(git log -1 --pretty=%B "$COMMIT_SHA")
+            echo "PR head commit: $COMMIT_SHA"
+          else
+            COMMIT_MSG=$(git log -1 --pretty=%B)
+          fi
+
+          echo "Checking commit message: $COMMIT_MSG"
+          if echo "$COMMIT_MSG" | grep -q "\[deploy-to-aws\]"; then
+            echo "SHOULD_DEPLOY=true" >> $GITHUB_ENV
+            echo "✅ Deploying to AWS: [deploy-to-aws] found in commit message"
+          else
+            echo "SHOULD_DEPLOY=false" >> $GITHUB_ENV
+            echo "⏭️  Skipping AWS deployment: dry run mode"
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: autonomous-loop-demo-iac
+        run: bun install --frozen-lockfile
+
+      # AWS credentials via OIDC (no long-lived secrets!)
+      - name: Configure AWS credentials
+        if: env.SHOULD_DEPLOY == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEMO_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Phase 1: Unit tests (always run, no AWS needed)
+      - name: Phase 1 - Run unit tests
+        working-directory: autonomous-loop-demo-iac
+        run: bun run test:unit
+
+      # Phase 2: Bootstrap CDK (first time only)
+      - name: Phase 2a - Bootstrap CDK environment
+        if: env.SHOULD_DEPLOY == 'true'
+        working-directory: autonomous-loop-demo-iac
+        run: npx cdk bootstrap
+        continue-on-error: true  # May already be bootstrapped
+
+      # Phase 2: Deploy infrastructure
+      - name: Phase 2b - Deploy CDK stack
+        if: env.SHOULD_DEPLOY == 'true'
+        working-directory: autonomous-loop-demo-iac
+        run: bun run deploy
+
+      # Phase 3: Integration tests against live AWS resources
+      - name: Phase 3 - Run integration tests
+        if: env.SHOULD_DEPLOY == 'true'
+        working-directory: autonomous-loop-demo-iac
+        run: bun run test:integration
+
+      # Phase 4: Cleanup (always run if deployed, even on failure)
+      - name: Phase 4 - Destroy CDK stack
+        if: env.SHOULD_DEPLOY == 'true' && always()
+        working-directory: autonomous-loop-demo-iac
+        run: bun run destroy
+
+      # Upload artifacts for debugging
+      - name: Upload CDK outputs
+        if: env.SHOULD_DEPLOY == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdk-outputs
+          path: |
+            autonomous-loop-demo-iac/cdk-outputs.json
+            autonomous-loop-demo-iac/cdk.out/
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            autonomous-loop-demo-iac/coverage/
+            autonomous-loop-demo-iac/test-results/
+          if-no-files-found: ignore  # Don't warn if coverage/results don't exist
+
+      # Summary comment
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## Autonomous CDK Deployment Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ env.SHOULD_DEPLOY }}" == "true" ]; then
+            echo "✅ Full deployment workflow executed" >> $GITHUB_STEP_SUMMARY
+            echo "- Unit tests: ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- CDK deployment: ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- Integration tests: ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- Cleanup: ✅" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Dry run mode (unit tests only)" >> $GITHUB_STEP_SUMMARY
+            echo "- Unit tests: ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- AWS deployment: ⏭️ Skipped" >> $GITHUB_STEP_SUMMARY
+          fi

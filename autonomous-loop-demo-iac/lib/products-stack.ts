@@ -31,8 +31,16 @@ export class ProductsStack extends cdk.Stack {
           image: lambda.Runtime.NODEJS_24_X.bundlingImage,
           command: [
             'bash', '-c',
-            'cp -r /asset-input/* /asset-output/ && cd /asset-output && npm install --production'
-          ]
+            [
+              'cp -r /asset-input/* /asset-output/',
+              'cd /asset-output',
+              'npm install --production --cache /tmp/.npm --prefer-offline',
+              'npm install --no-save typescript @types/node @types/aws-lambda',
+              'npx tsc --target ES2022 --module commonjs --moduleResolution node --outDir . index.ts',
+              'rm -f *.ts'  // Clean up TypeScript files after compilation
+            ].join(' && ')
+          ],
+          user: 'root'
         }
       }),
       environment: {
