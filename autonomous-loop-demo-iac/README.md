@@ -150,7 +150,7 @@ npm install
 npm run preflight
 
 # 3. Run autonomous agent
-/ralph-loop PROMPT.md --completion-promise COMPLETE --max-iterations 30
+/ralph-loop:ralph-loop PROMPT.md --completion-promise COMPLETE --max-iterations 30
 
 # Agent will:
 # - Run unit tests (pass immediately - infrastructure correct)
@@ -179,7 +179,7 @@ npm run demo:prewarm
 npm run deploy
 
 # 3. Run autonomous agent (only 4-5 iterations needed)
-/ralph-loop PROMPT.md --completion-promise COMPLETE --max-iterations 30
+/ralph-loop:ralph-loop PROMPT.md --completion-promise COMPLETE --max-iterations 30
 
 # Agent sees 7 failing tests and completes remaining endpoints
 
@@ -214,35 +214,48 @@ npm run destroy
 This demo includes a GitHub Actions workflow (`.github/workflows/cdk-autonomous-deployment.yml`) that runs the entire multi-phase deployment automatically in the cloud.
 
 **Features**:
-- **Manual trigger only** (`workflow_dispatch`) - no accidental AWS charges
+- **Automatic on PR** - runs unit tests automatically on pull requests
+- **Commit message trigger** - add `[deploy-to-aws]` to commit message for full deployment
+- **Manual trigger** - `workflow_dispatch` for on-demand execution
 - **AWS OIDC authentication** - no long-lived secrets required
-- **Safety flag** - requires explicit opt-in to deploy (`deploy_to_aws=true`)
 - **Guaranteed cleanup** - destroys stack even if tests fail
 - **Cost-conscious** - unit tests always run (free), deployment optional
 
 **Setup**:
 
-1. Configure AWS OIDC provider in your AWS account
-2. Add `AWS_DEMO_ROLE_ARN` secret to GitHub repository
-3. Trigger workflow manually from Actions tab
+Run the automated setup script:
+```bash
+./autonomous-loop-demo-iac/scripts/setup-aws-github-actions.sh
+```
+
+This script will:
+1. Create AWS OIDC provider for GitHub Actions
+2. Create IAM role with trust policy for your repository
+3. Attach necessary permissions (AdministratorAccess for demo)
+4. Configure GitHub secret `AWS_DEMO_ROLE_ARN`
 
 **Usage**:
 
 ```bash
-# Option 1: Trigger via GitHub UI
+# Option 1: Commit message trigger (recommended for PRs)
+git commit -m "feat: add products API [deploy-to-aws]"
+git push origin my-branch
+# Creates PR → workflow runs with full AWS deployment
+
+# Option 2: Dry run (unit tests only)
+git commit -m "feat: add products API"
+git push origin my-branch
+# Creates PR → workflow runs unit tests only
+
+# Option 3: Manual trigger via GitHub CLI
+gh workflow run cdk-autonomous-deployment.yml \
+  -f deploy_to_aws=true
+
+# Option 4: Trigger via GitHub UI
 # 1. Go to Actions tab
 # 2. Select "Autonomous CDK Deployment"
 # 3. Click "Run workflow"
 # 4. Set deploy_to_aws=true
-# 5. Watch execution
-
-# Option 2: Trigger via GitHub CLI
-gh workflow run cdk-autonomous-deployment.yml \
-  -f deploy_to_aws=true
-
-# Option 3: Dry run (unit tests only, no AWS)
-gh workflow run cdk-autonomous-deployment.yml \
-  -f deploy_to_aws=false
 ```
 
 **What the workflow does**:

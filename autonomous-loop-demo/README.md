@@ -135,7 +135,7 @@ npm test                         # Now ~12 tests pass, 7 fail
 
 #### 3. Run Autonomous Loop
 ```bash
-npm run ralph  # Would start autonomous agent
+/ralph-loop:ralph-loop PROMPT.md --completion-promise COMPLETE --max-iterations 30
 # Agent sees:
 #   - PROMPT.md objectives
 #   - 7 failing tests (PUT/DELETE endpoints)
@@ -163,8 +163,8 @@ To see the complete autonomous loop:
 # Reset to skeleton
 cp demo-snapshots/iteration-0-skeleton.ts src/endpoints/products.ts
 
-# Run autonomous loop (requires ralph plugin)
-npm run ralph
+# Run autonomous loop (requires ralph-loop plugin)
+/ralph-loop:ralph-loop PROMPT.md --completion-promise COMPLETE --max-iterations 30
 
 # Watch as agent iterates through ~5-7 cycles:
 # - Iteration 1: Implements GET endpoints

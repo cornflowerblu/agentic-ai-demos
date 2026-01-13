@@ -226,7 +226,7 @@ cat src/endpoints/products.ts  # Show partial implementation
 
 ### Part 3: Launch Ralph for Final Iterations (2 min)
 ```bash
-npm run ralph  # Start autonomous loop
+/ralph-loop:ralph-loop PROMPT.md --completion-promise COMPLETE --max-iterations 30
 # Watch as agent:
 #   - Sees failing PUT/DELETE tests
 #   - Implements PUT endpoint
@@ -296,7 +296,7 @@ npm run test:integration           # 12/19 passing, 7 failing
 
 ### Part 4: Autonomous Loop (3 min)
 ```bash
-npm run ralph                      # Agent sees 7 failing tests
+/ralph-loop:ralph-loop PROMPT.md --completion-promise COMPLETE --max-iterations 30
 # Watch as agent:
 #   - Implements PUT endpoint for updating products
 #   - Re-runs integration tests, sees progress
