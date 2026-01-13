@@ -37,15 +37,22 @@ jobs:
             exit 0
           fi
 
-          # Check if latest commit message contains [deploy-to-aws]
-          COMMIT_MSG=$(git log -1 --pretty=%B)
-          echo "Latest commit message: $COMMIT_MSG"
+          # For PRs, get the actual head commit message (not GitHub's merge commit)
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            COMMIT_SHA="${{ github.event.pull_request.head.sha }}"
+            COMMIT_MSG=$(git log -1 --pretty=%B "$COMMIT_SHA")
+            echo "PR head commit: $COMMIT_SHA"
+          else
+            COMMIT_MSG=$(git log -1 --pretty=%B)
+          fi
+
+          echo "Checking commit message: $COMMIT_MSG"
           if echo "$COMMIT_MSG" | grep -q "\[deploy-to-aws\]"; then
             echo "SHOULD_DEPLOY=true" >> $GITHUB_ENV
-            echo "Deploying to AWS: commit message trigger"
+            echo "✅ Deploying to AWS: [deploy-to-aws] found in commit message"
           else
             echo "SHOULD_DEPLOY=false" >> $GITHUB_ENV
-            echo "Skipping AWS deployment: dry run mode"
+            echo "⏭️  Skipping AWS deployment: dry run mode"
           fi
 
       - name: Setup Node.js
@@ -118,6 +125,7 @@ jobs:
           path: |
             autonomous-loop-demo-iac/coverage/
             autonomous-loop-demo-iac/test-results/
+          if-no-files-found: ignore  # Don't warn if coverage/results don't exist
 
       # Summary comment
       - name: Job summary
