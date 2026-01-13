@@ -21,6 +21,10 @@ jobs:
       id-token: write  # For AWS OIDC
       contents: read
 
+    env:
+      # Deploy to AWS if manually triggered with deploy_to_aws=true OR if commit message contains [deploy-to-aws]
+      SHOULD_DEPLOY: ${{ inputs.deploy_to_aws || contains(github.event.head_commit.message, '[deploy-to-aws]') }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,7 +45,7 @@ jobs:
 
       # AWS credentials via OIDC (no long-lived secrets!)
       - name: Configure AWS credentials
-        if: inputs.deploy_to_aws
+        if: env.SHOULD_DEPLOY == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEMO_ROLE_ARN }}
@@ -54,32 +58,32 @@ jobs:
 
       # Phase 2: Bootstrap CDK (first time only)
       - name: Phase 2a - Bootstrap CDK environment
-        if: inputs.deploy_to_aws
+        if: env.SHOULD_DEPLOY == 'true'
         working-directory: autonomous-loop-demo-iac
         run: npx cdk bootstrap
         continue-on-error: true  # May already be bootstrapped
 
       # Phase 2: Deploy infrastructure
       - name: Phase 2b - Deploy CDK stack
-        if: inputs.deploy_to_aws
+        if: env.SHOULD_DEPLOY == 'true'
         working-directory: autonomous-loop-demo-iac
         run: bun run deploy
 
       # Phase 3: Integration tests against live AWS resources
       - name: Phase 3 - Run integration tests
-        if: inputs.deploy_to_aws
+        if: env.SHOULD_DEPLOY == 'true'
         working-directory: autonomous-loop-demo-iac
         run: bun run test:integration
 
       # Phase 4: Cleanup (always run if deployed, even on failure)
       - name: Phase 4 - Destroy CDK stack
-        if: inputs.deploy_to_aws && always()
+        if: env.SHOULD_DEPLOY == 'true' && always()
         working-directory: autonomous-loop-demo-iac
         run: bun run destroy
 
       # Upload artifacts for debugging
       - name: Upload CDK outputs
-        if: inputs.deploy_to_aws && always()
+        if: env.SHOULD_DEPLOY == 'true' && always()
         uses: actions/upload-artifact@v4
         with:
           name: cdk-outputs
@@ -102,7 +106,7 @@ jobs:
         run: |
           echo "## Autonomous CDK Deployment Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ inputs.deploy_to_aws }}" == "true" ]; then
+          if [ "${{ env.SHOULD_DEPLOY }}" == "true" ]; then
             echo "✅ Full deployment workflow executed" >> $GITHUB_STEP_SUMMARY
             echo "- Unit tests: ✅" >> $GITHUB_STEP_SUMMARY
             echo "- CDK deployment: ✅" >> $GITHUB_STEP_SUMMARY
