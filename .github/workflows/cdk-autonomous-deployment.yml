@@ -29,12 +29,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24.x'
-          cache: 'npm'
-          cache-dependency-path: autonomous-loop-demo-iac/package-lock.json
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies
         working-directory: autonomous-loop-demo-iac
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       # AWS credentials via OIDC (no long-lived secrets!)
       - name: Configure AWS credentials
@@ -47,7 +50,7 @@ jobs:
       # Phase 1: Unit tests (always run, no AWS needed)
       - name: Phase 1 - Run unit tests
         working-directory: autonomous-loop-demo-iac
-        run: npm run test:unit
+        run: bun run test:unit
 
       # Phase 2: Bootstrap CDK (first time only)
       - name: Phase 2a - Bootstrap CDK environment
@@ -60,19 +63,19 @@ jobs:
       - name: Phase 2b - Deploy CDK stack
         if: inputs.deploy_to_aws
         working-directory: autonomous-loop-demo-iac
-        run: npm run deploy
+        run: bun run deploy
 
       # Phase 3: Integration tests against live AWS resources
       - name: Phase 3 - Run integration tests
         if: inputs.deploy_to_aws
         working-directory: autonomous-loop-demo-iac
-        run: npm run test:integration
+        run: bun run test:integration
 
       # Phase 4: Cleanup (always run if deployed, even on failure)
       - name: Phase 4 - Destroy CDK stack
         if: inputs.deploy_to_aws && always()
         working-directory: autonomous-loop-demo-iac
-        run: npm run destroy
+        run: bun run destroy
 
       # Upload artifacts for debugging
       - name: Upload CDK outputs
