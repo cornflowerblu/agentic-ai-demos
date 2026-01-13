@@ -17,12 +17,10 @@ export class ProductsStack extends cdk.Stack {
       },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY, // Allow deletion for demo
-      tableName: `products-${this.stackName}`,
-      tags: {
-        demo: 'autonomous-loop-iac',
-        managedBy: 'cdk'
-      }
+      tableName: `products-${this.stackName}`
     });
+    cdk.Tags.of(table).add('demo', 'autonomous-loop-iac');
+    cdk.Tags.of(table).add('managedBy', 'cdk');
 
     // Lambda Function for Products API
     const handler = new lambda.Function(this, 'ProductsApiHandler', {
@@ -43,11 +41,9 @@ export class ProductsStack extends cdk.Stack {
       },
       timeout: cdk.Duration.seconds(10),
       memorySize: 256,
-      description: 'Products API Handler - Autonomous Loop Demo',
-      tags: {
-        demo: 'autonomous-loop-iac'
-      }
+      description: 'Products API Handler - Autonomous Loop Demo'
     });
+    cdk.Tags.of(handler).add('demo', 'autonomous-loop-iac');
 
     // Grant Lambda permissions to read/write DynamoDB
     table.grantReadWriteData(handler);
@@ -65,11 +61,9 @@ export class ProductsStack extends cdk.Stack {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: apigateway.Cors.ALL_METHODS,
         allowHeaders: ['Content-Type', 'Authorization']
-      },
-      tags: {
-        demo: 'autonomous-loop-iac'
       }
     });
+    cdk.Tags.of(api).add('demo', 'autonomous-loop-iac');
 
     // Lambda integration
     const integration = new apigateway.LambdaIntegration(handler, {

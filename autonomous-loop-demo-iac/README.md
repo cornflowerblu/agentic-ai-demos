@@ -209,6 +209,63 @@ npm run test:integration
 npm run destroy
 ```
 
+### GitHub Actions Workflow (CI/CD)
+
+This demo includes a GitHub Actions workflow (`.github/workflows/cdk-autonomous-deployment.yml`) that runs the entire multi-phase deployment automatically in the cloud.
+
+**Features**:
+- **Manual trigger only** (`workflow_dispatch`) - no accidental AWS charges
+- **AWS OIDC authentication** - no long-lived secrets required
+- **Safety flag** - requires explicit opt-in to deploy (`deploy_to_aws=true`)
+- **Guaranteed cleanup** - destroys stack even if tests fail
+- **Cost-conscious** - unit tests always run (free), deployment optional
+
+**Setup**:
+
+1. Configure AWS OIDC provider in your AWS account
+2. Add `AWS_DEMO_ROLE_ARN` secret to GitHub repository
+3. Trigger workflow manually from Actions tab
+
+**Usage**:
+
+```bash
+# Option 1: Trigger via GitHub UI
+# 1. Go to Actions tab
+# 2. Select "Autonomous CDK Deployment"
+# 3. Click "Run workflow"
+# 4. Set deploy_to_aws=true
+# 5. Watch execution
+
+# Option 2: Trigger via GitHub CLI
+gh workflow run cdk-autonomous-deployment.yml \
+  -f deploy_to_aws=true
+
+# Option 3: Dry run (unit tests only, no AWS)
+gh workflow run cdk-autonomous-deployment.yml \
+  -f deploy_to_aws=false
+```
+
+**What the workflow does**:
+1. ✅ Runs unit tests (always)
+2. 🚀 Deploys to AWS (if `deploy_to_aws=true`)
+3. ✅ Runs integration tests (if deployed)
+4. 🧹 Destroys stack (always runs, even on failure)
+5. 📊 Uploads artifacts (CDK outputs, test results)
+
+**Cost estimate**: Same as local run (~$0.50 per execution with deployment)
+
+**Comparison: Local vs GitHub Actions**
+
+| Aspect | Local (Ralph) | GitHub Actions |
+|--------|---------------|----------------|
+| **Control** | Full terminal control | Cloud automation |
+| **Setup** | AWS CLI + credentials | OIDC role + secrets |
+| **Trigger** | Manual command | Manual or automated |
+| **Visibility** | Terminal output | GitHub UI + logs |
+| **Cost** | AWS charges only | AWS + GitHub minutes |
+| **Cleanup** | Manual | Guaranteed (always) |
+| **Best for** | Development, demos | CI/CD, automation |
+
 ## Cost Estimates
 
 ### Per Run (Complete Workflow)
