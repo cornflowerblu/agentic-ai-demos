@@ -26,6 +26,10 @@ fastapi-demo/
     └── test_main.py     # API tests
 ```
 
+## Requirements
+
+- Python 3.14+ (latest stable as of January 2026)
+
 ## Getting Started
 
 1. Create a virtual environment:
