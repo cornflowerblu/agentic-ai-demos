@@ -31,8 +31,9 @@ export class ProductsStack extends cdk.Stack {
           image: lambda.Runtime.NODEJS_24_X.bundlingImage,
           command: [
             'bash', '-c',
-            'cp -r /asset-input/* /asset-output/ && cd /asset-output && npm install --production'
-          ]
+            'cp -r /asset-input/* /asset-output/ && cd /asset-output && npm install --production --cache /tmp/.npm --prefer-offline'
+          ],
+          user: 'root'
         }
       }),
       environment: {
