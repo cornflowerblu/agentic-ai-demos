@@ -1,0 +1,7 @@
+# Placeholder for rate limiting middleware
+# This directory is intentionally empty for the AI-assisted development demo
+#
+# Future middleware to implement:
+# - rateLimiter.ts - Request rate limiting
+# - auth.ts - Authentication middleware
+# - validation.ts - Request validation middleware
