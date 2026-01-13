@@ -1,6 +1,11 @@
 name: Autonomous CDK Deployment
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'autonomous-loop-demo-iac/**'
+      - '.github/workflows/cdk-autonomous-deployment.yml'
   workflow_dispatch:  # Manual trigger only (no accidental runs)
     inputs:
       deploy_to_aws:
