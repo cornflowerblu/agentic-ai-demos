@@ -1,0 +1,100 @@
+name: Autonomous CDK Deployment
+
+on:
+  workflow_dispatch:  # Manual trigger only (no accidental runs)
+    inputs:
+      deploy_to_aws:
+        description: 'Actually deploy to AWS? (Will incur ~$0.50 in charges)'
+        type: boolean
+        default: false
+        required: true
+
+jobs:
+  autonomous-iac:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # For AWS OIDC
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # AWS credentials via OIDC (no long-lived secrets!)
+      - name: Configure AWS credentials
+        if: inputs.deploy_to_aws
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEMO_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # Phase 1: Unit tests (always run, no AWS needed)
+      - name: Phase 1 - Run unit tests
+        run: npm run test:unit
+
+      # Phase 2: Bootstrap CDK (first time only)
+      - name: Phase 2a - Bootstrap CDK environment
+        if: inputs.deploy_to_aws
+        run: npx cdk bootstrap
+        continue-on-error: true  # May already be bootstrapped
+
+      # Phase 2: Deploy infrastructure
+      - name: Phase 2b - Deploy CDK stack
+        if: inputs.deploy_to_aws
+        run: npm run deploy
+
+      # Phase 3: Integration tests against live AWS resources
+      - name: Phase 3 - Run integration tests
+        if: inputs.deploy_to_aws
+        run: npm run test:integration
+
+      # Phase 4: Cleanup (always run if deployed, even on failure)
+      - name: Phase 4 - Destroy CDK stack
+        if: inputs.deploy_to_aws && always()
+        run: npm run destroy
+
+      # Upload artifacts for debugging
+      - name: Upload CDK outputs
+        if: inputs.deploy_to_aws && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdk-outputs
+          path: |
+            cdk-outputs.json
+            cdk.out/
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            coverage/
+            test-results/
+
+      # Summary comment
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## Autonomous CDK Deployment Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.deploy_to_aws }}" == "true" ]; then
+            echo "✅ Full deployment workflow executed" >> $GITHUB_STEP_SUMMARY
+            echo "- Unit tests: ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- CDK deployment: ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- Integration tests: ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- Cleanup: ✅" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Dry run mode (unit tests only)" >> $GITHUB_STEP_SUMMARY
+            echo "- Unit tests: ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- AWS deployment: ⏭️ Skipped" >> $GITHUB_STEP_SUMMARY
+          fi

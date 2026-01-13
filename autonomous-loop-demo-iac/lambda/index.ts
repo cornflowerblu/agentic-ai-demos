@@ -40,35 +40,32 @@ export const handler = async (
   try {
     // Route: GET /products - List all products
     if (method === 'GET' && pathParts.length === 1 && pathParts[0] === 'products') {
-      // TODO: Implement listProducts()
-      return notImplemented('GET /products');
+      return await listProducts();
     }
 
     // Route: GET /products/{id} - Get product by ID
     if (method === 'GET' && pathParts.length === 2 && pathParts[0] === 'products') {
       const id = pathParts[1];
-      // TODO: Implement getProduct(id)
-      return notImplemented('GET /products/{id}');
+      return await getProduct(id);
     }
 
     // Route: POST /products - Create new product
     if (method === 'POST' && pathParts.length === 1 && pathParts[0] === 'products') {
-      // TODO: Implement createProduct(body)
-      return notImplemented('POST /products');
+      const body = event.body ? JSON.parse(event.body) : {};
+      return await createProduct(body);
     }
 
     // Route: PUT /products/{id} - Update product
     if (method === 'PUT' && pathParts.length === 2 && pathParts[0] === 'products') {
       const id = pathParts[1];
-      // TODO: Implement updateProduct(id, body)
-      return notImplemented('PUT /products/{id}');
+      const body = event.body ? JSON.parse(event.body) : {};
+      return await updateProduct(id, body);
     }
 
     // Route: DELETE /products/{id} - Delete product
     if (method === 'DELETE' && pathParts.length === 2 && pathParts[0] === 'products') {
       const id = pathParts[1];
-      // TODO: Implement deleteProduct(id)
-      return notImplemented('DELETE /products/{id}');
+      return await deleteProduct(id);
     }
 
     // No matching route
@@ -80,41 +77,218 @@ export const handler = async (
 };
 
 /**
- * TODO: Implement listProducts()
- * Use ScanCommand to get all products from DynamoDB
- * Return: { statusCode: 200, body: { success: true, data: Product[] } }
+ * List all products from DynamoDB
+ * Uses ScanCommand to retrieve all items
  */
+async function listProducts(): Promise<APIGatewayProxyResult> {
+  try {
+    const command = new ScanCommand({
+      TableName: tableName
+    });
+
+    const result = await docClient.send(command);
+    const products = result.Items || [];
+
+    return successResponse(200, products);
+  } catch (error) {
+    console.error('Error listing products:', error);
+    return errorResponse(500, 'Failed to list products');
+  }
+}
 
 /**
- * TODO: Implement getProduct(id: string)
- * Use GetCommand to fetch product by ID
- * Return 404 if not found
- * Return: { statusCode: 200, body: { success: true, data: Product } }
+ * Get a single product by ID
+ * Uses GetCommand to fetch from DynamoDB
+ * Returns 404 if product not found
  */
+async function getProduct(id: string): Promise<APIGatewayProxyResult> {
+  try {
+    const command = new GetCommand({
+      TableName: tableName,
+      Key: { id }
+    });
+
+    const result = await docClient.send(command);
+
+    if (!result.Item) {
+      return errorResponse(404, 'Product not found');
+    }
+
+    return successResponse(200, result.Item);
+  } catch (error) {
+    console.error('Error getting product:', error);
+    return errorResponse(500, 'Failed to get product');
+  }
+}
 
 /**
- * TODO: Implement createProduct(body: any)
- * Validate: name (required), price (required, positive), category (required)
- * Generate: id (UUID), createdAt (ISO timestamp)
- * Use PutCommand to store in DynamoDB
- * Return: { statusCode: 201, body: { success: true, data: Product } }
+ * Create a new product
+ * Validates required fields and stores in DynamoDB
  */
+async function createProduct(body: any): Promise<APIGatewayProxyResult> {
+  try {
+    // Validate name
+    if (!body.name || typeof body.name !== 'string' || body.name.trim() === '') {
+      return errorResponse(400, 'Name is required and must be a non-empty string');
+    }
+
+    // Validate price
+    if (body.price === undefined || body.price === null) {
+      return errorResponse(400, 'Price is required');
+    }
+    if (typeof body.price !== 'number' || body.price <= 0) {
+      return errorResponse(400, 'Price must be a positive number');
+    }
+
+    // Validate category
+    if (!body.category || typeof body.category !== 'string' || body.category.trim() === '') {
+      return errorResponse(400, 'Category is required and must be a non-empty string');
+    }
+
+    // Create product with generated fields
+    const product: Product = {
+      id: randomUUID(),
+      name: body.name.trim(),
+      price: body.price,
+      category: body.category.trim(),
+      createdAt: new Date().toISOString()
+    };
+
+    // Store in DynamoDB
+    const command = new PutCommand({
+      TableName: tableName,
+      Item: product
+    });
+
+    await docClient.send(command);
+
+    return successResponse(201, product);
+  } catch (error) {
+    console.error('Error creating product:', error);
+    return errorResponse(500, 'Failed to create product');
+  }
+}
 
 /**
- * TODO: Implement updateProduct(id: string, body: any)
- * Validate update data
- * Set updatedAt timestamp
- * Use UpdateCommand to update in DynamoDB
- * Return 404 if not found
- * Return: { statusCode: 200, body: { success: true, data: Product } }
+ * Update an existing product
  */
+async function updateProduct(id: string, body: any): Promise<APIGatewayProxyResult> {
+  try {
+    // First, check if product exists
+    const getCommand = new GetCommand({
+      TableName: tableName,
+      Key: { id }
+    });
+
+    const existing = await docClient.send(getCommand);
+
+    if (!existing.Item) {
+      return errorResponse(404, `Product with id ${id} not found`);
+    }
+
+    // Validate update data
+    if (body.name !== undefined) {
+      if (typeof body.name !== 'string' || body.name.trim() === '') {
+        return errorResponse(400, 'Name must be a non-empty string');
+      }
+    }
+
+    if (body.price !== undefined) {
+      if (typeof body.price !== 'number' || body.price <= 0) {
+        return errorResponse(400, 'Price must be a positive number');
+      }
+    }
+
+    if (body.category !== undefined) {
+      if (typeof body.category !== 'string' || body.category.trim() === '') {
+        return errorResponse(400, 'Category must be a non-empty string');
+      }
+    }
+
+    // Build update expression
+    const updateExpressions: string[] = [];
+    const expressionAttributeNames: Record<string, string> = {};
+    const expressionAttributeValues: Record<string, any> = {};
+
+    if (body.name !== undefined) {
+      updateExpressions.push('#name = :name');
+      expressionAttributeNames['#name'] = 'name';
+      expressionAttributeValues[':name'] = body.name.trim();
+    }
+
+    if (body.price !== undefined) {
+      updateExpressions.push('#price = :price');
+      expressionAttributeNames['#price'] = 'price';
+      expressionAttributeValues[':price'] = body.price;
+    }
+
+    if (body.category !== undefined) {
+      updateExpressions.push('#category = :category');
+      expressionAttributeNames['#category'] = 'category';
+      expressionAttributeValues[':category'] = body.category.trim();
+    }
+
+    // Always set updatedAt
+    updateExpressions.push('#updatedAt = :updatedAt');
+    expressionAttributeNames['#updatedAt'] = 'updatedAt';
+    expressionAttributeValues[':updatedAt'] = new Date().toISOString();
+
+    const updateCommand = new UpdateCommand({
+      TableName: tableName,
+      Key: { id },
+      UpdateExpression: `SET ${updateExpressions.join(', ')}`,
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ReturnValues: 'ALL_NEW'
+    });
+
+    const result = await docClient.send(updateCommand);
+
+    return successResponse(200, result.Attributes as Product);
+  } catch (error) {
+    console.error('Error updating product:', error);
+    return errorResponse(500, 'Failed to update product');
+  }
+}
 
 /**
- * TODO: Implement deleteProduct(id: string)
- * Use DeleteCommand to remove from DynamoDB
- * Return 404 if not found
- * Return: { statusCode: 200, body: { success: true, message: string } }
+ * Delete a product
  */
+async function deleteProduct(id: string): Promise<APIGatewayProxyResult> {
+  try {
+    // First, check if product exists
+    const getCommand = new GetCommand({
+      TableName: tableName,
+      Key: { id }
+    });
+
+    const existing = await docClient.send(getCommand);
+
+    if (!existing.Item) {
+      return errorResponse(404, `Product with id ${id} not found`);
+    }
+
+    // Delete the product
+    const deleteCommand = new DeleteCommand({
+      TableName: tableName,
+      Key: { id }
+    });
+
+    await docClient.send(deleteCommand);
+
+    return {
+      statusCode: 200,
+      headers: corsHeaders(),
+      body: JSON.stringify({
+        success: true,
+        message: 'Product deleted successfully'
+      })
+    };
+  } catch (error) {
+    console.error('Error deleting product:', error);
+    return errorResponse(500, 'Failed to delete product');
+  }
+}
 
 // Helper functions
 
