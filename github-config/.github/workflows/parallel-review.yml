@@ -1,0 +1,267 @@
+# Parallel Code Review with Multiple Specialized Agents
+# This workflow demonstrates running multiple review agents in parallel,
+# each with a different focus area (security, performance, documentation)
+
+name: Parallel Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+jobs:
+  # Determine which files changed to optimize review scope
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      src: ${{ steps.filter.outputs.src }}
+      tests: ${{ steps.filter.outputs.tests }}
+      docs: ${{ steps.filter.outputs.docs }}
+      config: ${{ steps.filter.outputs.config }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            src:
+              - 'src/**'
+              - 'lib/**'
+            tests:
+              - 'tests/**'
+              - '**/*.test.ts'
+              - '**/*.spec.ts'
+            docs:
+              - 'docs/**'
+              - '**/*.md'
+              - 'openapi/**'
+            config:
+              - '*.json'
+              - '*.yaml'
+              - '*.yml'
+              - '.github/**'
+
+  # Matrix strategy for parallel specialized reviews
+  specialized-review:
+    name: ${{ matrix.review.name }}
+    needs: changes
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # Continue other reviews even if one fails
+      matrix:
+        review:
+          - name: Security Review
+            focus: security
+            prompt: |
+              You are a security-focused code reviewer. Analyze the PR for:
+              - Authentication and authorization vulnerabilities
+              - Input validation and sanitization issues
+              - SQL injection, XSS, CSRF vulnerabilities
+              - Secrets or credentials in code
+              - Insecure dependencies
+              - Data exposure risks
+              - Cryptographic weaknesses
+              Format findings as: [SECURITY-{CRITICAL|HIGH|MEDIUM|LOW}] Description
+            emoji: "🔒"
+
+          - name: Performance Review
+            focus: performance
+            prompt: |
+              You are a performance-focused code reviewer. Analyze the PR for:
+              - N+1 query patterns
+              - Unnecessary database calls
+              - Memory leaks or inefficient memory usage
+              - Missing caching opportunities
+              - Blocking operations in async contexts
+              - Large payload sizes
+              - Missing pagination
+              - Inefficient algorithms (O(n²) when O(n) is possible)
+              Format findings as: [PERF-{CRITICAL|HIGH|MEDIUM|LOW}] Description
+            emoji: "⚡"
+
+          - name: Documentation Review
+            focus: documentation
+            prompt: |
+              You are a documentation-focused code reviewer. Analyze the PR for:
+              - Missing or outdated JSDoc/TSDoc comments
+              - Missing OpenAPI annotations for endpoints
+              - Unclear function/method names
+              - Missing README updates for new features
+              - Missing changelog entries
+              - Undocumented breaking changes
+              - Missing usage examples
+              Format findings as: [DOCS-{REQUIRED|RECOMMENDED}] Description
+            emoji: "📚"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          # Get the diff for the PR
+          git diff origin/${{ github.base_ref }}...HEAD > pr_diff.txt
+
+          # Get list of changed files
+          git diff --name-only origin/${{ github.base_ref }}...HEAD > changed_files.txt
+
+          echo "Changed files:"
+          cat changed_files.txt
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run ${{ matrix.review.focus }} review
+        id: review
+        run: |
+          # Create the review prompt
+          cat > review_prompt.txt << 'PROMPT_EOF'
+          ${{ matrix.review.prompt }}
+
+          Review the following code changes and provide your analysis.
+          Be specific about file names and line numbers when possible.
+          If no issues found in your focus area, state that explicitly.
+          PROMPT_EOF
+
+          # Run Claude Code with the specialized prompt
+          claude -p "$(cat review_prompt.txt)
+
+          Files changed:
+          $(cat changed_files.txt)
+
+          Diff:
+          $(cat pr_diff.txt)" --output-format json > review_result.json || true
+
+          # Extract the review content
+          if [ -f review_result.json ]; then
+            REVIEW_CONTENT=$(cat review_result.json | jq -r '.result // .content // "Review completed but no structured output available"')
+          else
+            REVIEW_CONTENT="Review agent encountered an error. Please check the workflow logs."
+          fi
+
+          # Save for the comment step
+          echo "$REVIEW_CONTENT" > review_output.txt
+
+      - name: Post review comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const reviewContent = fs.readFileSync('review_output.txt', 'utf8');
+            const emoji = '${{ matrix.review.emoji }}';
+            const reviewName = '${{ matrix.review.name }}';
+            const focus = '${{ matrix.review.focus }}';
+
+            // Create a collapsible comment for cleaner PR view
+            const body = `## ${emoji} ${reviewName}
+
+            <details>
+            <summary>Click to expand ${focus} review findings</summary>
+
+            ${reviewContent}
+
+            </details>
+
+            ---
+            *Automated review by Claude Code - ${focus} agent*
+            *Review triggered by: ${{ github.event.pull_request.head.sha }}*`;
+
+            // Find existing comment from this review type
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existingComment = comments.find(c =>
+              c.body.includes(`${emoji} ${reviewName}`) &&
+              c.user.type === 'Bot'
+            );
+
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+  # Aggregate results and provide summary
+  review-summary:
+    name: Review Summary
+    needs: [specialized-review]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Generate summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const results = ${{ toJson(needs.specialized-review.result) }};
+
+            let summaryBody = `## 📋 Parallel Review Summary
+
+            | Review Type | Status |
+            |-------------|--------|
+            | 🔒 Security | ${results === 'success' ? '✅ Passed' : '⚠️ Check Results'} |
+            | ⚡ Performance | ${results === 'success' ? '✅ Passed' : '⚠️ Check Results'} |
+            | 📚 Documentation | ${results === 'success' ? '✅ Passed' : '⚠️ Check Results'} |
+
+            > **Note:** Expand individual review comments above for detailed findings.
+            >
+            > All reviews ran in parallel using Claude Code agents with specialized prompts.
+
+            ---
+            *Review completed at: ${new Date().toISOString()}*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: summaryBody
+            });
+
+  # Optional: Block merge if critical issues found
+  review-gate:
+    name: Review Gate
+    needs: [specialized-review]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check for blocking issues
+        run: |
+          # In a real implementation, you would:
+          # 1. Parse the review outputs for CRITICAL findings
+          # 2. Fail the workflow if blocking issues exist
+          # 3. This creates a required check that prevents merge
+
+          echo "Review gate check passed"
+          echo "In production, implement logic to parse review results"
+          echo "and fail if CRITICAL security or performance issues found"

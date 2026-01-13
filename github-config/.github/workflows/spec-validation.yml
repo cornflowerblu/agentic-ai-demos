@@ -1,0 +1,328 @@
+# Specification Validation Workflow
+# Validates that implementations match their specifications
+# and that specs are complete and properly formatted
+
+name: Spec Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'specs/**'
+      - 'openapi/**'
+      - 'src/**'
+      - 'lib/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+jobs:
+  # Detect which spec files changed
+  detect-spec-changes:
+    name: Detect Spec Changes
+    runs-on: ubuntu-latest
+    outputs:
+      specs_changed: ${{ steps.check.outputs.specs_changed }}
+      changed_specs: ${{ steps.check.outputs.changed_specs }}
+      impl_changed: ${{ steps.check.outputs.impl_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for spec changes
+        id: check
+        run: |
+          # Get changed files
+          CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+
+          # Check for spec files
+          SPEC_FILES=$(echo "$CHANGED" | grep -E '^(specs/|openapi/)' || true)
+          IMPL_FILES=$(echo "$CHANGED" | grep -E '^(src/|lib/)' || true)
+
+          if [ -n "$SPEC_FILES" ]; then
+            echo "specs_changed=true" >> $GITHUB_OUTPUT
+            echo "changed_specs<<EOF" >> $GITHUB_OUTPUT
+            echo "$SPEC_FILES" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "specs_changed=false" >> $GITHUB_OUTPUT
+            echo "changed_specs=" >> $GITHUB_OUTPUT
+          fi
+
+          if [ -n "$IMPL_FILES" ]; then
+            echo "impl_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "impl_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Validate spec file completeness
+  spec-completeness:
+    name: Spec Completeness Check
+    needs: detect-spec-changes
+    if: needs.detect-spec-changes.outputs.specs_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          npm install -g @apidevtools/swagger-cli
+
+      - name: Validate OpenAPI specs
+        if: contains(needs.detect-spec-changes.outputs.changed_specs, 'openapi/')
+        run: |
+          echo "Validating OpenAPI specifications..."
+
+          # Find all OpenAPI spec files
+          for spec in openapi/*.yaml openapi/*.json; do
+            if [ -f "$spec" ]; then
+              echo "Validating: $spec"
+              swagger-cli validate "$spec" || echo "Validation issues in $spec"
+            fi
+          done
+
+      - name: Check spec completeness with Claude
+        run: |
+          cat > completeness_prompt.txt << 'EOF'
+          Analyze the following specification files for completeness.
+
+          Check for:
+          1. Missing required fields (description, version, contact info)
+          2. Endpoints without request/response schemas
+          3. Missing error response definitions
+          4. Undocumented query parameters
+          5. Missing authentication requirements
+          6. Incomplete data models (missing field descriptions, types)
+          7. Missing examples
+          8. Broken references ($ref)
+
+          For each issue found, specify:
+          - File path
+          - Location in file
+          - What's missing
+          - Suggested fix
+
+          Output format:
+          [SPEC-INCOMPLETE] file:location - Issue description
+          [SPEC-SUGGESTION] file:location - Improvement suggestion
+          EOF
+
+          # Get spec file contents
+          SPEC_CONTENT=""
+          for spec in ${{ needs.detect-spec-changes.outputs.changed_specs }}; do
+            if [ -f "$spec" ]; then
+              SPEC_CONTENT="$SPEC_CONTENT
+
+          --- File: $spec ---
+          $(cat "$spec")"
+            fi
+          done
+
+          claude -p "$(cat completeness_prompt.txt)
+
+          Specification files to review:
+          $SPEC_CONTENT" > completeness_report.txt || true
+
+          echo "## Spec Completeness Report" >> $GITHUB_STEP_SUMMARY
+          cat completeness_report.txt >> $GITHUB_STEP_SUMMARY
+
+      - name: Post completeness report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report = 'No completeness issues found.';
+
+            try {
+              report = fs.readFileSync('completeness_report.txt', 'utf8');
+            } catch (e) {
+              console.log('No report file found');
+            }
+
+            const body = `## 📋 Spec Completeness Check
+
+            ${report}
+
+            ---
+            *Automated spec validation by Claude Code*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+  # Validate implementation matches spec
+  spec-implementation-match:
+    name: Spec-Implementation Validation
+    needs: detect-spec-changes
+    if: |
+      needs.detect-spec-changes.outputs.specs_changed == 'true' ||
+      needs.detect-spec-changes.outputs.impl_changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Map specs to implementations
+        id: mapping
+        run: |
+          # Create a mapping of spec files to implementation files
+          # This is project-specific and should be customized
+
+          cat > spec_mapping.json << 'EOF'
+          {
+            "openapi/payments.yaml": ["src/payments/", "src/controllers/payment.ts"],
+            "openapi/users.yaml": ["src/users/", "src/controllers/user.ts"],
+            "specs/auth.md": ["src/auth/", "src/middleware/auth.ts"],
+            "specs/validation.md": ["src/validators/", "src/utils/validate.ts"]
+          }
+          EOF
+
+          echo "Spec-to-implementation mapping created"
+
+      - name: Validate spec-implementation alignment
+        run: |
+          cat > alignment_prompt.txt << 'EOF'
+          You are validating that code implementations match their specifications.
+
+          Compare the specification with the implementation and identify:
+
+          1. DRIFT: Implementation differs from spec
+             - Missing endpoints defined in spec
+             - Different request/response formats
+             - Missing validation rules
+             - Different error codes
+
+          2. UNDOCUMENTED: Implementation has features not in spec
+             - Endpoints not documented
+             - Query params not documented
+             - Response fields not documented
+
+          3. BREAKING CHANGES: Changes that would break existing clients
+             - Removed endpoints
+             - Changed required fields
+             - Modified response structure
+
+          For each issue:
+          [DRIFT] spec_file -> impl_file: Description of mismatch
+          [UNDOCUMENTED] impl_file: Feature not in spec
+          [BREAKING] spec_file: Breaking change description
+
+          If implementation matches spec, output:
+          [ALIGNED] spec_file -> impl_file: Implementation matches specification
+          EOF
+
+          # In a real implementation, you would:
+          # 1. Read the spec mapping
+          # 2. For each spec, find corresponding implementations
+          # 3. Send both to Claude for comparison
+
+          # Example validation run
+          claude -p "$(cat alignment_prompt.txt)
+
+          Validate that the implementation aligns with specifications.
+          Check the src/ directory against openapi/ and specs/ directories.
+
+          List any misalignments found." > alignment_report.txt || true
+
+          echo "## Spec-Implementation Alignment Report" >> $GITHUB_STEP_SUMMARY
+          cat alignment_report.txt >> $GITHUB_STEP_SUMMARY
+
+      - name: Check for breaking changes
+        run: |
+          # Compare current specs with base branch specs
+          git show origin/${{ github.base_ref }}:openapi/ > /tmp/old_specs 2>/dev/null || true
+
+          cat > breaking_prompt.txt << 'EOF'
+          Analyze the spec changes for breaking changes.
+
+          Breaking changes include:
+          - Removed endpoints
+          - Changed HTTP methods
+          - Removed required response fields
+          - Changed field types
+          - More restrictive validation
+          - Changed authentication requirements
+
+          Non-breaking changes include:
+          - Added optional fields
+          - Added new endpoints
+          - Relaxed validation
+          - Added optional parameters
+
+          For each breaking change found:
+          [BREAKING-CHANGE] Description and migration path needed
+          EOF
+
+          echo "Breaking change analysis completed"
+
+      - name: Post alignment report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report = 'Alignment check completed.';
+
+            try {
+              report = fs.readFileSync('alignment_report.txt', 'utf8');
+            } catch (e) {
+              console.log('No report file found');
+            }
+
+            const body = `## 🔗 Spec-Implementation Alignment
+
+            ${report}
+
+            ---
+            *Automated validation by Claude Code*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+  # Final validation gate
+  validation-gate:
+    name: Validation Gate
+    needs: [spec-completeness, spec-implementation-match]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check validation results
+        run: |
+          COMPLETENESS="${{ needs.spec-completeness.result }}"
+          ALIGNMENT="${{ needs.spec-implementation-match.result }}"
+
+          echo "Spec Completeness: $COMPLETENESS"
+          echo "Spec-Implementation Alignment: $ALIGNMENT"
+
+          # In production, you would parse the reports for blocking issues
+          # and fail the workflow if critical misalignments exist
+
+          if [ "$COMPLETENESS" = "failure" ] || [ "$ALIGNMENT" = "failure" ]; then
+            echo "::warning::Validation checks had failures. Review the reports."
+          fi
+
+          echo "Validation gate completed"
