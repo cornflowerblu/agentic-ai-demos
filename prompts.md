@@ -1,25 +1,28 @@
-CREATE THE DEMOS
-I need to create some demos for a presentation on AI assisted software
-development. The topics I want to cover are:
-The AI enabled builder, and builder-adjacent roles. This includes:
-Researching projects with agents
-Planning projects with agents
-Building software with agents
-Testing software with agents
+# CREATE THE DEMOS
+
+I need to create some demos for a presentation on AI assisted software development. The topics I want to cover are:
+
+1. The AI enabled builder, and builder-adjacent roles. This includes:
+2. Researching projects with agents
+3. Planning projects with agents
+4. Building software with agents
+5. Testing software with agents
 
 I also want to cover:
-Custom agents / Multi-agent orchestration
-Skills
-Rules
-MCP Servers
+
+1. Custom agents / Multi-agent orchestration
+2. Skills
+3. Rules
+4. MCP Servers
 
 I will be using claude code as my terminal app, and github copilot as my vs
 code extension. I also want to showcase parallel agent workflows, both in my
 own terminal and on GitHub. The MCP servers I plan to show are:
-Context 7
-Microsoft Docs
-AWS Documentation
-Jira
+
+1. Context 7
+2. Microsoft Docs
+3. AWS Documentation
+4. Jira
 
 Lastly, one of the most important things I want to show is spec-driven
 development, for which we'll be using GitHub spec kit (in claude code and
@@ -32,10 +35,18 @@ Can you help me come up with some demos for each of these topics? Each demo
 should be concise but illustrative of the capabilities of AI-assisted
 software development.
 
-RALPH LOOP USER DISCOVERED THE ISSUE
+# RALPH LOOP USER DISCOVERED THE ISSUE
+
 Ok... so that took just a second, but I finally found the official plugin.
 You can invoke it with /ralph-loop and there are variations as well like
 /ralph-loop:help, etc. Can you double check our docs and make sure that this
 is what we will use? If we need to update any of the demos that's ok, let's
 do it. Oh, and you might want to compact first. You're going to run out of
 your context window soon.
+
+# CONGRATULATING THE ASSISTANT & WRAPPING UP
+
+YES! NICE! can you just review main one more time and make sure that the
+docs are up to date and the files are all in a good spot to run the demo
+again? OH.. BTW - the actual ralph command is /ralph-loop:ralph-loop THEN
+the rest of it. So you might want to update that in the docs.
