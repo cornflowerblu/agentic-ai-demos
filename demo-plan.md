@@ -1,0 +1,225 @@
+# AI-Assisted Software Development - Demo Plan
+
+## Overview
+Demos for a presentation on AI-assisted software development using Claude Code (terminal) and GitHub Copilot (VS Code).
+
+## Tools & Integrations
+- **Claude Code** - Terminal app
+- **GitHub Copilot** - VS Code extension
+- **GitHub Spec Kit** - Spec-driven development
+- **MCP Servers:** Context7, Microsoft Docs, AWS Documentation, Jira
+
+---
+
+## Demo 1: The AI-Enabled Builder Workflow
+
+### 1A: Researching with Agents
+**Scenario:** Explore an unfamiliar open-source project to understand its architecture
+
+```
+"I've just cloned the FastAPI repository. Help me understand
+the request lifecycle - how does a request flow from the router
+to the response?"
+```
+
+**What it shows:**
+- Parallel agent exploration of codebase
+- Agents reading multiple files simultaneously
+- Synthesizing architectural understanding
+- Using Context7 MCP to pull FastAPI documentation inline
+
+---
+
+### 1B: Planning with Agents
+**Scenario:** Plan a new feature using plan mode
+
+```
+"I want to add rate limiting to our API. Enter plan mode and
+design an implementation approach."
+```
+
+**What it shows:**
+- Entering plan mode for non-trivial tasks
+- Agent exploring existing middleware patterns
+- Presenting multiple approaches (Redis vs in-memory)
+- User approval before implementation begins
+
+---
+
+### 1C: Building with Agents
+**Scenario:** Implement the planned feature with parallel agents
+
+```
+"Implement the rate limiting feature. Use parallel agents to
+create the middleware, update the config, and add the Redis
+client simultaneously."
+```
+
+**What it shows:**
+- Multiple agents working in parallel
+- One agent on middleware, one on config, one on Redis client
+- Todo list tracking progress across agents
+- Code appearing in VS Code via Copilot for review
+
+---
+
+### 1D: Testing with Agents
+**Scenario:** Generate and run tests for the new feature
+
+```
+"Write comprehensive tests for the rate limiting middleware,
+then run them and fix any failures."
+```
+
+**What it shows:**
+- Test generation based on implementation
+- Running test suite in background
+- Automatic iteration on failures
+- Final passing test suite
+
+---
+
+## Demo 2: Spec-Driven Development with GitHub Spec Kit
+
+**Scenario:** Build a feature from a GitHub issue using spec kit
+
+**Step 1:** Create a detailed spec from a Jira ticket
+```
+"Pull PROJ-1234 from Jira and create a GitHub spec for the
+user notification preferences feature."
+```
+
+**Step 2:** Generate implementation plan from spec
+```
+/spec-plan
+```
+
+**Step 3:** Implement with spec guidance
+```
+"Implement the notification preferences feature according to
+the spec. Reference Microsoft Docs for the email service
+integration patterns."
+```
+
+**What it shows:**
+- Jira MCP integration pulling requirements
+- Spec kit creating structured specifications
+- Implementation guided by spec (not hallucinated)
+- Microsoft Docs MCP for API patterns
+- PR created with spec linkage
+
+---
+
+## Demo 3: MCP Server Integrations
+
+**Scenario:** Build a feature requiring multiple documentation sources
+
+```
+"I need to create a Lambda function that uses DynamoDB streams
+to trigger notifications. Help me understand the event structure
+and implementation patterns."
+```
+
+**What it shows:**
+- AWS Documentation MCP for Lambda/DynamoDB patterns
+- Context7 for any SDK-specific docs
+- Agents synthesizing multiple sources
+- Code generation with accurate API usage
+
+---
+
+## Demo 4: Parallel GitHub Workflows
+
+**Scenario:** Show parallel agent workflows on GitHub Actions
+
+```yaml
+# .github/workflows/parallel-review.yml
+# Trigger multiple specialized agents on PR
+- security-review-agent
+- performance-review-agent
+- documentation-review-agent
+```
+
+**What it shows:**
+- Multiple agents triggered by PR
+- Each agent has different skills/tools
+- Results aggregated into PR comments
+- Parallel execution in GitHub Actions
+
+---
+
+## Demo 5: Skills & Rules
+
+### 5A: Skills in Action
+**Scenario:** Show skill invocation and modularity
+
+```
+/commit           # Skill for structured commits
+/review-pr 123    # Skill for PR review
+/security-scan    # Custom skill
+```
+
+**What it shows:**
+- Built-in vs custom skills
+- Skills as reusable workflows
+- Skill output formatting
+
+---
+
+### 5B: Rules Enforcement
+**Scenario:** Show how rules guide agent behavior
+
+```markdown
+# .claude/rules.md
+- Always use TypeScript strict mode
+- All API endpoints must have OpenAPI annotations
+- Never commit directly to main
+- Use conventional commits format
+```
+
+**What it shows:**
+- Project-specific rules
+- Agent respecting rules during generation
+- Rules preventing mistakes before they happen
+
+---
+
+## Demo 6: Parallel Agent Workflows (Terminal)
+
+**Scenario:** Refactor a module with parallel exploration and implementation
+
+```
+"Refactor the payment processing module. In parallel:
+1. Have one agent analyze the current implementation
+2. Have another agent research best practices from AWS docs
+3. Have a third agent check our Jira for related tickets"
+```
+
+**What it shows:**
+- Three agents launched simultaneously
+- Different MCP servers per agent (AWS, Jira)
+- Results synthesized into action plan
+- Terminal showing parallel progress
+
+---
+
+## Suggested Demo Flow
+
+| Order | Demo | Duration | Key Tool/Feature |
+|-------|------|----------|------------------|
+| 1 | Research (1A) | 3 min | Explore agent, Context7 |
+| 2 | Plan (1B) | 3 min | Plan mode |
+| 3 | Spec-Driven (2) | 5 min | Spec Kit, Jira MCP |
+| 4 | Build (1C) | 4 min | Parallel agents |
+| 5 | MCP Servers (3) | 3 min | AWS/MS Docs MCPs |
+| 6 | Test (1D) | 3 min | Test generation |
+| 7 | GitHub Parallel (4) | 3 min | GitHub Actions |
+| 8 | Skills & Rules (5) | 3 min | Skills, rules enforcement |
+
+**Total estimated time:** ~27 minutes
+
+---
+
+## Notes
+- Custom agents will be demoed using pre-existing configurations (available to builders after session)
+- Parallel agent workflows shown both in terminal and on GitHub
