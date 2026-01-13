@@ -1,0 +1,146 @@
+{
+  "$schema": "https://claude.ai/schemas/claude-code-settings.json",
+  "version": "1.0",
+
+  "project": {
+    "name": "Demo Project",
+    "description": "Demonstration project for Claude Code parallel agent workflows",
+    "language": "typescript",
+    "framework": "express"
+  },
+
+  "agent": {
+    "model": "claude-sonnet-4-20250514",
+    "maxTokens": 4096,
+    "temperature": 0.1,
+    "timeout": 120000
+  },
+
+  "review": {
+    "enabled": true,
+    "autoReview": true,
+    "focusAreas": [
+      "security",
+      "performance",
+      "documentation",
+      "testing",
+      "best-practices"
+    ],
+    "severity": {
+      "blockMerge": ["critical", "high"],
+      "warnOnly": ["medium", "low"]
+    },
+    "ignore": [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/coverage/**",
+      "**/*.min.js",
+      "**/*.lock"
+    ]
+  },
+
+  "rules": {
+    "path": ".claude/rules.md",
+    "enforce": true,
+    "strictMode": true
+  },
+
+  "workflows": {
+    "parallelReview": {
+      "enabled": true,
+      "agents": [
+        {
+          "name": "security-agent",
+          "focus": "security",
+          "priority": 1
+        },
+        {
+          "name": "performance-agent",
+          "focus": "performance",
+          "priority": 2
+        },
+        {
+          "name": "docs-agent",
+          "focus": "documentation",
+          "priority": 3
+        }
+      ]
+    },
+    "specValidation": {
+      "enabled": true,
+      "specPaths": ["openapi/", "specs/"],
+      "implPaths": ["src/", "lib/"]
+    }
+  },
+
+  "github": {
+    "createComments": true,
+    "updateComments": true,
+    "useCollapsible": true,
+    "labelPRs": true,
+    "labels": {
+      "security-issue": "security",
+      "performance-issue": "performance",
+      "needs-docs": "documentation",
+      "needs-tests": "testing"
+    }
+  },
+
+  "testing": {
+    "coverage": {
+      "minimum": 80,
+      "critical": 100,
+      "criticalPaths": [
+        "src/payments/",
+        "src/auth/",
+        "src/security/"
+      ]
+    },
+    "required": ["unit", "integration"]
+  },
+
+  "security": {
+    "scanning": {
+      "dependencies": true,
+      "sast": true,
+      "secrets": true
+    },
+    "allowedPatterns": [],
+    "blockedPatterns": [
+      "password\\s*=\\s*['\"]",
+      "api[_-]?key\\s*=\\s*['\"]",
+      "secret\\s*=\\s*['\"]",
+      "token\\s*=\\s*['\"]"
+    ]
+  },
+
+  "formatting": {
+    "prettier": true,
+    "eslint": true,
+    "autoFix": false
+  },
+
+  "notifications": {
+    "slack": {
+      "enabled": false,
+      "channel": "#code-reviews",
+      "onCritical": true
+    },
+    "email": {
+      "enabled": false,
+      "recipients": []
+    }
+  },
+
+  "customPrompts": {
+    "codeReview": "Review this code change following the project rules in .claude/rules.md. Focus on TypeScript strict mode compliance, OpenAPI annotations, and security best practices.",
+    "prDescription": "Generate a PR description based on the changes, following conventional commit format for the title.",
+    "testGeneration": "Generate comprehensive tests for this code, ensuring 80% minimum coverage."
+  },
+
+  "experimental": {
+    "parallelExecution": true,
+    "caching": true,
+    "incrementalReview": true
+  }
+}
