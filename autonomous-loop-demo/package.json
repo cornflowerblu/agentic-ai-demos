@@ -11,7 +11,7 @@
     "test:watch": "jest --watch",
     "build": "tsc",
     "dev": "ts-node-dev --respawn src/app.ts",
-    "ralph": "echo 'Ralph integration would run here: npx @anthropic/claude-code --continue --prompt PROMPT.md'",
+    "ralph": "echo 'Run: /ralph-loop PROMPT.md --completion-promise COMPLETE --max-iterations 50'",
     "verify": "npm test && echo '\n✅ All tests passing - ready for completion!'"
   },
   "keywords": ["autonomous", "ai", "demo", "ralph", "test-driven"],

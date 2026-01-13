@@ -16,7 +16,7 @@
     "deploy": "cdk deploy --require-approval never --outputs-file cdk-outputs.json",
     "destroy": "cdk destroy --force",
     "cleanup": "npm run destroy || ts-node scripts/force-cleanup.ts",
-    "ralph": "echo 'Ralph: npx @anthropic/claude-code --continue --prompt PROMPT.md'",
+    "ralph": "echo 'Run: /ralph-loop PROMPT.md --completion-promise COMPLETE --max-iterations 30'",
     "verify": "npm run test:unit && npm run deploy && npm run test:integration && npm run destroy",
     "demo:reset": "cp demo-snapshots/iteration-0-skeleton.ts lambda/index.ts",
     "demo:prewarm": "cp demo-snapshots/iteration-4-partial.ts lambda/index.ts",

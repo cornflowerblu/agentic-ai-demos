@@ -31,3 +31,11 @@ how tools are assigned to different agents based on their skills.
 Can you help me come up with some demos for each of these topics? Each demo
 should be concise but illustrative of the capabilities of AI-assisted
 software development.
+
+RALPH LOOP USER DISCOVERED THE ISSUE
+Ok... so that took just a second, but I finally found the official plugin.
+You can invoke it with /ralph-loop and there are variations as well like
+/ralph-loop:help, etc. Can you double check our docs and make sure that this
+is what we will use? If we need to update any of the demos that's ok, let's
+do it. Oh, and you might want to compact first. You're going to run out of
+your context window soon.

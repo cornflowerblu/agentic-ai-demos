@@ -150,7 +150,7 @@ npm install
 npm run preflight
 
 # 3. Run autonomous agent
-npx @anthropic/claude-code --continue --prompt PROMPT.md
+/ralph-loop PROMPT.md --completion-promise COMPLETE --max-iterations 30
 
 # Agent will:
 # - Run unit tests (pass immediately - infrastructure correct)
@@ -179,7 +179,7 @@ npm run demo:prewarm
 npm run deploy
 
 # 3. Run autonomous agent (only 4-5 iterations needed)
-npx @anthropic/claude-code --continue --prompt PROMPT.md
+/ralph-loop PROMPT.md --completion-promise COMPLETE --max-iterations 30
 
 # Agent sees 7 failing tests and completes remaining endpoints
 
