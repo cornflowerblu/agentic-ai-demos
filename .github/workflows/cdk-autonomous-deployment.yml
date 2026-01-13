@@ -21,13 +21,32 @@ jobs:
       id-token: write  # For AWS OIDC
       contents: read
 
-    env:
-      # Deploy to AWS if manually triggered with deploy_to_aws=true OR if commit message contains [deploy-to-aws]
-      SHOULD_DEPLOY: ${{ inputs.deploy_to_aws || contains(github.event.head_commit.message, '[deploy-to-aws]') }}
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Fetch last 2 commits to get commit message
+
+      - name: Check if should deploy to AWS
+        id: check-deploy
+        run: |
+          # Check if manually triggered with deploy_to_aws=true
+          if [ "${{ inputs.deploy_to_aws }}" == "true" ]; then
+            echo "SHOULD_DEPLOY=true" >> $GITHUB_ENV
+            echo "Deploying to AWS: manual trigger"
+            exit 0
+          fi
+
+          # Check if latest commit message contains [deploy-to-aws]
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Latest commit message: $COMMIT_MSG"
+          if echo "$COMMIT_MSG" | grep -q "\[deploy-to-aws\]"; then
+            echo "SHOULD_DEPLOY=true" >> $GITHUB_ENV
+            echo "Deploying to AWS: commit message trigger"
+          else
+            echo "SHOULD_DEPLOY=false" >> $GITHUB_ENV
+            echo "Skipping AWS deployment: dry run mode"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
