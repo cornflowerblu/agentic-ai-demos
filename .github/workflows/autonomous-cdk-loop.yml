@@ -37,16 +37,14 @@ jobs:
         with:
           fetch-depth: 0  # Full history for autonomous agent
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: '24.x'
-          cache: 'npm'
-          cache-dependency-path: autonomous-loop-demo-iac/package-lock.json
+          bun-version: latest
 
       - name: Install dependencies
         working-directory: autonomous-loop-demo-iac
-        run: npm ci
+        run: bun install --frozen-lockfile
 
       # Configure AWS credentials via OIDC (no long-lived secrets!)
       - name: Configure AWS credentials
@@ -68,7 +66,7 @@ jobs:
         working-directory: autonomous-loop-demo-iac
         run: |
           echo "📊 Initial Test State:"
-          npm run test:unit || echo "⚠️ Tests may be failing - autonomous agent will fix them"
+          bun run test:unit || echo "⚠️ Tests may be failing - autonomous agent will fix them"
 
       # This is where the autonomous agent would run
       # For now, we'll simulate it by running the verification workflow
@@ -91,7 +89,7 @@ jobs:
           echo "  5. Phase 5: Cleanup resources"
           echo ""
           echo "In production, this would run:"
-          echo "  npx @anthropic/claude-code \\"
+          echo "  bunx @anthropic/claude-code \\"
           echo "    --prompt PROMPT.md \\"
           echo "    --completion-promise COMPLETE \\"
           echo "    --max-iterations $MAX_ITERATIONS"
@@ -102,7 +100,7 @@ jobs:
         working-directory: autonomous-loop-demo-iac
         run: |
           echo "🧪 Running CDK unit tests..."
-          npm run test:unit
+          bun run test:unit
           echo "status=passed" >> $GITHUB_OUTPUT
 
       - name: Phase 2 - CDK Synthesis
@@ -110,7 +108,7 @@ jobs:
         working-directory: autonomous-loop-demo-iac
         run: |
           echo "🔨 Synthesizing CDK stack..."
-          npm run synth
+          bun run synth
           echo "status=passed" >> $GITHUB_OUTPUT
 
       - name: Phase 3a - Bootstrap CDK
@@ -118,7 +116,7 @@ jobs:
         working-directory: autonomous-loop-demo-iac
         run: |
           echo "🚀 Bootstrapping CDK environment..."
-          npx cdk bootstrap
+          bunx cdk bootstrap
         continue-on-error: true  # May already be bootstrapped
 
       - name: Phase 3b - Deploy to AWS
@@ -127,7 +125,7 @@ jobs:
         working-directory: autonomous-loop-demo-iac
         run: |
           echo "☁️ Deploying CDK stack to AWS..."
-          npm run deploy
+          bun run deploy
           echo "status=deployed" >> $GITHUB_OUTPUT
 
       - name: Phase 4 - Integration Tests
@@ -136,7 +134,7 @@ jobs:
         working-directory: autonomous-loop-demo-iac
         run: |
           echo "🧪 Running integration tests against live AWS..."
-          npm run test:integration
+          bun run test:integration
           echo "status=passed" >> $GITHUB_OUTPUT
 
       - name: Phase 5 - Cleanup Resources
@@ -145,7 +143,7 @@ jobs:
         working-directory: autonomous-loop-demo-iac
         run: |
           echo "🧹 Destroying AWS resources..."
-          npm run destroy || echo "⚠️ Cleanup may have failed - check AWS console"
+          bun run destroy || echo "⚠️ Cleanup may have failed - check AWS console"
           echo "status=cleaned" >> $GITHUB_OUTPUT
 
       # Check for completion marker
