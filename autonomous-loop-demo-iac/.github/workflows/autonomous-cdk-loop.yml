@@ -1,0 +1,322 @@
+name: Autonomous CDK Loop Implementation
+
+on:
+  push:
+    branches: [main, feature/*, demo-*]
+  pull_request:
+    paths:
+      - 'lambda/**'
+      - 'lib/**'
+      - 'test/**'
+      - 'PROMPT.md'
+  workflow_dispatch:  # Allow manual triggering
+    inputs:
+      deploy_to_aws:
+        description: 'Deploy to AWS? (Will incur ~$0.50 in charges)'
+        type: boolean
+        default: true
+        required: true
+      max_iterations:
+        description: 'Maximum autonomous loop iterations'
+        type: number
+        default: 30
+        required: false
+
+jobs:
+  autonomous-cdk-implementation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      id-token: write      # Required for AWS OIDC authentication
+      contents: write      # Required for git commits by autonomous agent
+      pull-requests: write # Required for PR comments
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for autonomous agent
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Configure AWS credentials via OIDC (no long-lived secrets!)
+      - name: Configure AWS credentials
+        if: github.event.inputs.deploy_to_aws != 'false'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEMO_ROLE_ARN }}
+          aws-region: us-east-1
+          role-session-name: GitHubActions-AutonomousCDK-${{ github.run_id }}
+
+      - name: Verify AWS credentials
+        if: github.event.inputs.deploy_to_aws != 'false'
+        run: |
+          echo "🔐 AWS Credentials configured via OIDC"
+          aws sts get-caller-identity
+          echo "Region: $AWS_REGION"
+
+      - name: Show initial state
+        run: |
+          echo "📊 Initial Test State:"
+          npm run test:unit || echo "⚠️ Tests may be failing - autonomous agent will fix them"
+
+      # This is where the autonomous agent would run
+      # For now, we'll simulate it by running the verification workflow
+      - name: Run autonomous agent loop (simulated)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          MAX_ITERATIONS: ${{ github.event.inputs.max_iterations || 30 }}
+        run: |
+          echo "🤖 Autonomous Agent Loop Configuration:"
+          echo "  - Max iterations: $MAX_ITERATIONS"
+          echo "  - Completion promise: <promise>COMPLETE</promise>"
+          echo "  - AWS deployment: ${{ github.event.inputs.deploy_to_aws }}"
+          echo ""
+          echo "📋 Workflow stages:"
+          echo "  1. Phase 1: Unit tests (CDK assertions)"
+          echo "  2. Phase 2: CDK synthesis"
+          echo "  3. Phase 3: Deploy to AWS (if enabled)"
+          echo "  4. Phase 4: Integration tests (live AWS)"
+          echo "  5. Phase 5: Cleanup resources"
+          echo ""
+          echo "In production, this would run:"
+          echo "  npx @anthropic/claude-code \\"
+          echo "    --prompt PROMPT.md \\"
+          echo "    --completion-promise COMPLETE \\"
+          echo "    --max-iterations $MAX_ITERATIONS"
+
+      # Actual implementation workflow
+      - name: Phase 1 - Unit Tests
+        id: unit_tests
+        run: |
+          echo "🧪 Running CDK unit tests..."
+          npm run test:unit
+          echo "status=passed" >> $GITHUB_OUTPUT
+
+      - name: Phase 2 - CDK Synthesis
+        id: synth
+        run: |
+          echo "🔨 Synthesizing CDK stack..."
+          npm run synth
+          echo "status=passed" >> $GITHUB_OUTPUT
+
+      - name: Phase 3a - Bootstrap CDK
+        if: github.event.inputs.deploy_to_aws != 'false'
+        run: |
+          echo "🚀 Bootstrapping CDK environment..."
+          npx cdk bootstrap
+        continue-on-error: true  # May already be bootstrapped
+
+      - name: Phase 3b - Deploy to AWS
+        if: github.event.inputs.deploy_to_aws != 'false'
+        id: deploy
+        run: |
+          echo "☁️ Deploying CDK stack to AWS..."
+          npm run deploy
+          echo "status=deployed" >> $GITHUB_OUTPUT
+
+      - name: Phase 4 - Integration Tests
+        if: github.event.inputs.deploy_to_aws != 'false'
+        id: integration_tests
+        run: |
+          echo "🧪 Running integration tests against live AWS..."
+          npm run test:integration
+          echo "status=passed" >> $GITHUB_OUTPUT
+
+      - name: Phase 5 - Cleanup Resources
+        if: github.event.inputs.deploy_to_aws != 'false' && always()
+        id: cleanup
+        run: |
+          echo "🧹 Destroying AWS resources..."
+          npm run destroy || echo "⚠️ Cleanup may have failed - check AWS console"
+          echo "status=cleaned" >> $GITHUB_OUTPUT
+
+      # Check for completion marker
+      - name: Verify completion
+        id: completion_check
+        if: always()
+        run: |
+          echo "🔍 Checking completion criteria..."
+          UNIT_TESTS="${{ steps.unit_tests.outputs.status }}"
+          SYNTH="${{ steps.synth.outputs.status }}"
+          INTEGRATION="${{ steps.integration_tests.outputs.status }}"
+
+          if [ "${{ github.event.inputs.deploy_to_aws }}" == "false" ]; then
+            # Dry run mode - only check unit tests and synth
+            if [ "$UNIT_TESTS" == "passed" ] && [ "$SYNTH" == "passed" ]; then
+              echo "complete=true" >> $GITHUB_OUTPUT
+              echo "✅ All phases completed (dry run mode)"
+            else
+              echo "complete=false" >> $GITHUB_OUTPUT
+              echo "❌ Some phases failed"
+            fi
+          else
+            # Full deployment mode
+            if [ "$UNIT_TESTS" == "passed" ] && [ "$SYNTH" == "passed" ] && [ "$INTEGRATION" == "passed" ]; then
+              echo "complete=true" >> $GITHUB_OUTPUT
+              echo "✅ All phases completed successfully"
+              echo ""
+              echo "<promise>COMPLETE</promise>"
+            else
+              echo "complete=false" >> $GITHUB_OUTPUT
+              echo "❌ Some phases failed"
+            fi
+          fi
+
+      # Upload artifacts
+      - name: Upload CDK outputs
+        if: github.event.inputs.deploy_to_aws != 'false' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdk-outputs
+          path: |
+            cdk-outputs.json
+            cdk.out/
+          retention-days: 7
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            coverage/
+          retention-days: 7
+
+      # Comment on PR with results
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const complete = '${{ steps.completion_check.outputs.complete }}' === 'true';
+            const unitTests = '${{ steps.unit_tests.outputs.status }}';
+            const synth = '${{ steps.synth.outputs.status }}';
+            const deploy = '${{ steps.deploy.outputs.status }}';
+            const integration = '${{ steps.integration_tests.outputs.status }}';
+            const cleanup = '${{ steps.cleanup.outputs.status }}';
+            const deployEnabled = '${{ github.event.inputs.deploy_to_aws }}' !== 'false';
+
+            let body = '## 🤖 Autonomous CDK Pipeline Results\n\n';
+
+            if (complete) {
+              body += '✅ **All phases completed successfully!**\n\n';
+              if (deployEnabled) {
+                body += 'Completion marker detected: `<promise>COMPLETE</promise>`\n\n';
+              }
+            } else {
+              body += '❌ **Some phases failed**\n\n';
+            }
+
+            body += '### Phase Summary\n\n';
+            body += `- 🧪 Phase 1 - Unit Tests: ${unitTests === 'passed' ? '✅' : '❌'}\n`;
+            body += `- 🔨 Phase 2 - CDK Synthesis: ${synth === 'passed' ? '✅' : '❌'}\n`;
+
+            if (deployEnabled) {
+              body += `- ☁️ Phase 3 - AWS Deployment: ${deploy === 'deployed' ? '✅' : '❌'}\n`;
+              body += `- 🧪 Phase 4 - Integration Tests: ${integration === 'passed' ? '✅' : '❌'}\n`;
+              body += `- 🧹 Phase 5 - Cleanup: ${cleanup === 'cleaned' ? '✅' : '⚠️'}\n`;
+            } else {
+              body += `- ☁️ Phase 3 - AWS Deployment: ⏭️ Skipped (dry run)\n`;
+              body += `- 🧪 Phase 4 - Integration Tests: ⏭️ Skipped (dry run)\n`;
+              body += `- 🧹 Phase 5 - Cleanup: ⏭️ Skipped (dry run)\n`;
+            }
+
+            body += '\n### Technical Details\n\n';
+            body += '- **Architecture**: Serverless REST API\n';
+            body += '- **Stack**: API Gateway + Lambda + DynamoDB\n';
+            body += '- **Authentication**: AWS OIDC (no long-lived secrets)\n';
+            body += '- **Runtime**: Node.js 24.x\n';
+            body += '- **IaC Tool**: AWS CDK\n';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      # Create job summary
+      - name: Create job summary
+        if: always()
+        run: |
+          echo "## 🤖 Autonomous CDK Implementation Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Workflow Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deploy to AWS**: ${{ github.event.inputs.deploy_to_aws }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Max Iterations**: ${{ github.event.inputs.max_iterations || 30 }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Phase Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.unit_tests.outputs.status }}" == "passed" ]; then
+            echo "✅ **Phase 1**: Unit Tests - PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Phase 1**: Unit Tests - FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ steps.synth.outputs.status }}" == "passed" ]; then
+            echo "✅ **Phase 2**: CDK Synthesis - PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Phase 2**: CDK Synthesis - FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ github.event.inputs.deploy_to_aws }}" != "false" ]; then
+            if [ "${{ steps.deploy.outputs.status }}" == "deployed" ]; then
+              echo "✅ **Phase 3**: AWS Deployment - DEPLOYED" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ **Phase 3**: AWS Deployment - FAILED" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            if [ "${{ steps.integration_tests.outputs.status }}" == "passed" ]; then
+              echo "✅ **Phase 4**: Integration Tests - PASSED" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ **Phase 4**: Integration Tests - FAILED" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            if [ "${{ steps.cleanup.outputs.status }}" == "cleaned" ]; then
+              echo "✅ **Phase 5**: Cleanup - COMPLETED" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ **Phase 5**: Cleanup - WARNING" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "⏭️ **Phase 3**: AWS Deployment - SKIPPED (dry run)" >> $GITHUB_STEP_SUMMARY
+            echo "⏭️ **Phase 4**: Integration Tests - SKIPPED (dry run)" >> $GITHUB_STEP_SUMMARY
+            echo "⏭️ **Phase 5**: Cleanup - SKIPPED (dry run)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.completion_check.outputs.complete }}" == "true" ]; then
+            echo "### 🎉 Status: COMPLETE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All phases completed successfully!" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ github.event.inputs.deploy_to_aws }}" != "false" ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "<promise>COMPLETE</promise>" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "### ⚠️ Status: INCOMPLETE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Some phases failed. Review logs above." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Architecture**: Serverless REST API (API Gateway + Lambda + DynamoDB)" >> $GITHUB_STEP_SUMMARY
+          echo "**Authentication**: AWS OIDC (no long-lived credentials)" >> $GITHUB_STEP_SUMMARY
+          echo "**Cost**: ~$0.50 per deployment (free tier eligible)" >> $GITHUB_STEP_SUMMARY

@@ -211,15 +211,29 @@ npm run destroy
 
 ### GitHub Actions Workflow (CI/CD)
 
-This demo includes a GitHub Actions workflow (`.github/workflows/cdk-autonomous-deployment.yml`) that runs the entire multi-phase deployment automatically in the cloud.
+This demo includes two GitHub Actions workflows for automated cloud deployment:
+
+#### 1. Standard CDK Deployment (`.github/workflows/cdk-autonomous-deployment.yml`)
+
+Basic workflow for manual or PR-triggered deployments.
 
 **Features**:
-- **Automatic on PR** - runs unit tests automatically on pull requests
-- **Commit message trigger** - add `[deploy-to-aws]` to commit message for full deployment
 - **Manual trigger** - `workflow_dispatch` for on-demand execution
 - **AWS OIDC authentication** - no long-lived secrets required
 - **Guaranteed cleanup** - destroys stack even if tests fail
-- **Cost-conscious** - unit tests always run (free), deployment optional
+- **Cost-conscious** - optional deployment flag to control AWS usage
+
+#### 2. Autonomous CDK Loop (`.github/workflows/autonomous-cdk-loop.yml`)
+
+Advanced workflow that integrates the autonomous agent loop pattern for iterative implementation.
+
+**Features**:
+- **Full autonomous loop integration** - simulates Ralph loop in CI/CD
+- **Push/PR triggers** - automatically runs on code changes
+- **AWS OIDC authentication** - secure temporary credentials
+- **Multi-phase execution** - unit tests → synth → deploy → integration → cleanup
+- **Detailed reporting** - PR comments with phase results and completion markers
+- **Dry run mode** - skip AWS deployment for cost control
 
 **Setup**:
 
@@ -234,50 +248,69 @@ This script will:
 3. Attach necessary permissions (AdministratorAccess for demo)
 4. Configure GitHub secret `AWS_DEMO_ROLE_ARN`
 
-**Usage**:
+**Usage - Standard Workflow**:
 
 ```bash
-# Option 1: Commit message trigger (recommended for PRs)
-git commit -m "feat: add products API [deploy-to-aws]"
-git push origin my-branch
-# Creates PR → workflow runs with full AWS deployment
-
-# Option 2: Dry run (unit tests only)
-git commit -m "feat: add products API"
-git push origin my-branch
-# Creates PR → workflow runs unit tests only
-
-# Option 3: Manual trigger via GitHub CLI
+# Option 1: Manual trigger via GitHub CLI
 gh workflow run cdk-autonomous-deployment.yml \
   -f deploy_to_aws=true
 
-# Option 4: Trigger via GitHub UI
+# Option 2: Trigger via GitHub UI
 # 1. Go to Actions tab
 # 2. Select "Autonomous CDK Deployment"
 # 3. Click "Run workflow"
 # 4. Set deploy_to_aws=true
 ```
 
-**What the workflow does**:
-1. ✅ Runs unit tests (always)
-2. 🚀 Deploys to AWS (if `deploy_to_aws=true`)
-3. ✅ Runs integration tests (if deployed)
-4. 🧹 Destroys stack (always runs, even on failure)
-5. 📊 Uploads artifacts (CDK outputs, test results)
+**Usage - Autonomous Loop Workflow**:
+
+```bash
+# Option 1: Push to feature branch (automatic trigger)
+git checkout -b feature/new-endpoint
+# ... make changes to lambda/index.ts or test files ...
+git commit -m "feat: implement new endpoint"
+git push origin feature/new-endpoint
+# Workflow runs automatically: unit tests → deploy → integration → cleanup
+
+# Option 2: Create Pull Request (automatic trigger)
+gh pr create --title "Add new endpoint" --body "Implementation details"
+# Workflow runs and comments on PR with results
+
+# Option 3: Manual trigger with custom settings
+gh workflow run autonomous-cdk-loop.yml \
+  -f deploy_to_aws=true \
+  -f max_iterations=30
+
+# Option 4: Dry run (unit tests + synth only, no AWS deployment)
+gh workflow run autonomous-cdk-loop.yml \
+  -f deploy_to_aws=false
+```
+
+**What the autonomous loop workflow does**:
+1. ✅ **Phase 1**: Unit Tests (CDK assertions) - always runs
+2. 🔨 **Phase 2**: CDK Synthesis - validates CloudFormation generation
+3. 🚀 **Phase 3**: Deploy to AWS - creates live infrastructure (if enabled)
+4. 🧪 **Phase 4**: Integration Tests - validates against live AWS resources
+5. 🧹 **Phase 5**: Cleanup - destroys all AWS resources (always runs if deployed)
+6. 📊 **Artifacts**: Uploads CDK outputs, test results, coverage reports
+7. 💬 **PR Comments**: Posts detailed results with completion marker
+8. 📝 **Job Summary**: Creates GitHub Actions summary with phase breakdown
 
 **Cost estimate**: Same as local run (~$0.50 per execution with deployment)
 
 **Comparison: Local vs GitHub Actions**
 
-| Aspect | Local (Ralph) | GitHub Actions |
-|--------|---------------|----------------|
-| **Control** | Full terminal control | Cloud automation |
-| **Setup** | AWS CLI + credentials | OIDC role + secrets |
-| **Trigger** | Manual command | Manual or automated |
-| **Visibility** | Terminal output | GitHub UI + logs |
-| **Cost** | AWS charges only | AWS + GitHub minutes |
-| **Cleanup** | Manual | Guaranteed (always) |
-| **Best for** | Development, demos | CI/CD, automation |
+| Aspect | Local (Ralph) | GitHub Actions (Standard) | GitHub Actions (Autonomous Loop) |
+|--------|---------------|---------------------------|----------------------------------|
+| **Control** | Full terminal control | Cloud automation | Cloud automation with loop |
+| **Setup** | AWS CLI + credentials | OIDC role + secrets | OIDC role + secrets |
+| **Trigger** | Manual command | Manual only | Push/PR/Manual |
+| **Loop Integration** | Native Ralph loop | N/A | Simulated pattern |
+| **Visibility** | Terminal output | GitHub UI + logs | GitHub UI + detailed summaries |
+| **PR Comments** | N/A | N/A | Automated with results |
+| **Cost** | AWS charges only | AWS + GitHub minutes | AWS + GitHub minutes |
+| **Cleanup** | Manual | Guaranteed | Guaranteed (always) |
+| **Best for** | Development, demos | Manual testing | CI/CD, automation, PRs |
 
 ## Cost Estimates
 

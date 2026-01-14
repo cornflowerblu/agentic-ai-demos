@@ -285,7 +285,7 @@ async function deleteProduct(id: string): Promise<APIGatewayProxyResult> {
       headers: corsHeaders(),
       body: JSON.stringify({
         success: true,
-        message: `Product ${id} deleted successfully`
+        message: 'Product deleted successfully'
       })
     };
   } catch (error) {
