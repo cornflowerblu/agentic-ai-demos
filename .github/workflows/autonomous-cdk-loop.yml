@@ -42,8 +42,10 @@ jobs:
         with:
           node-version: '24.x'
           cache: 'npm'
+          cache-dependency-path: autonomous-loop-demo-iac/package-lock.json
 
       - name: Install dependencies
+        working-directory: autonomous-loop-demo-iac
         run: npm ci
 
       # Configure AWS credentials via OIDC (no long-lived secrets!)
@@ -63,6 +65,7 @@ jobs:
           echo "Region: $AWS_REGION"
 
       - name: Show initial state
+        working-directory: autonomous-loop-demo-iac
         run: |
           echo "📊 Initial Test State:"
           npm run test:unit || echo "⚠️ Tests may be failing - autonomous agent will fix them"
@@ -96,6 +99,7 @@ jobs:
       # Actual implementation workflow
       - name: Phase 1 - Unit Tests
         id: unit_tests
+        working-directory: autonomous-loop-demo-iac
         run: |
           echo "🧪 Running CDK unit tests..."
           npm run test:unit
@@ -103,6 +107,7 @@ jobs:
 
       - name: Phase 2 - CDK Synthesis
         id: synth
+        working-directory: autonomous-loop-demo-iac
         run: |
           echo "🔨 Synthesizing CDK stack..."
           npm run synth
@@ -110,6 +115,7 @@ jobs:
 
       - name: Phase 3a - Bootstrap CDK
         if: github.event.inputs.deploy_to_aws != 'false'
+        working-directory: autonomous-loop-demo-iac
         run: |
           echo "🚀 Bootstrapping CDK environment..."
           npx cdk bootstrap
@@ -118,6 +124,7 @@ jobs:
       - name: Phase 3b - Deploy to AWS
         if: github.event.inputs.deploy_to_aws != 'false'
         id: deploy
+        working-directory: autonomous-loop-demo-iac
         run: |
           echo "☁️ Deploying CDK stack to AWS..."
           npm run deploy
@@ -126,6 +133,7 @@ jobs:
       - name: Phase 4 - Integration Tests
         if: github.event.inputs.deploy_to_aws != 'false'
         id: integration_tests
+        working-directory: autonomous-loop-demo-iac
         run: |
           echo "🧪 Running integration tests against live AWS..."
           npm run test:integration
@@ -134,6 +142,7 @@ jobs:
       - name: Phase 5 - Cleanup Resources
         if: github.event.inputs.deploy_to_aws != 'false' && always()
         id: cleanup
+        working-directory: autonomous-loop-demo-iac
         run: |
           echo "🧹 Destroying AWS resources..."
           npm run destroy || echo "⚠️ Cleanup may have failed - check AWS console"
@@ -178,8 +187,8 @@ jobs:
         with:
           name: cdk-outputs
           path: |
-            cdk-outputs.json
-            cdk.out/
+            autonomous-loop-demo-iac/cdk-outputs.json
+            autonomous-loop-demo-iac/cdk.out/
           retention-days: 7
 
       - name: Upload test results
@@ -188,7 +197,7 @@ jobs:
         with:
           name: test-results
           path: |
-            coverage/
+            autonomous-loop-demo-iac/coverage/
           retention-days: 7
 
       # Comment on PR with results
